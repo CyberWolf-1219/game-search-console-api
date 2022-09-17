@@ -3,22 +3,29 @@ const Schema = mongoose.Schema;
 
 const GameSchema = new Schema(
   {
-    details: {
-      Name: {
+    DETAILS: {
+      NAME: {
         type: String,
         require: true,
       },
-      Developer: {
+      DEVELOPER: {
         type: String,
+        require: true,
       },
-      Year: {
+      RELEASE_YEAR: {
         type: String,
+        require: true,
       },
-      Genres: {
-        type: String,
+      GENRES: {
+        type: Array,
+        require: true,
+      },
+      TAGS: {
+        type: Array,
+        require: true,
       },
     },
-    System: {
+    SYSTEM: {
       CPU: {
         type: String,
       },

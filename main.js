@@ -34,25 +34,55 @@ app.get("/", (req, res) => {
 });
 
 //SEARCH
-app.post("/search", async (req, res) => {
-  console.log(`[+] NEW SERACH REQUEST: ${req.body}`);
-  await GAME.find()
-    .then((result) => {
-      res.send(result);
-      console.log(`[+] SENDING A GAME LIST`);
+app.post("/search", (req, res) => {
+  console.log(`[+] NEW SERACH REQUEST...`);
+  const cpu = req.body.cpu;
+  const gpu = req.body.gpu;
+  const memory = req.body.memory;
+  const name = req.body.name;
+
+  if (name !== "") {
+    GAME.find({ "DETAILS.NAME": { $regex: new RegExp(name, "i") } })
+      .then((searchResult) => {
+        res.send(searchResult);
+      })
+      .catch((dbSearchError) => {
+        console.log(dbSearchError);
+      });
+  } else if (cpu === "" && gpu === "" && memory === "") {
+    GAME.find()
+      .then((searchResult) => {
+        res.send(searchResult);
+      })
+      .catch((dbSearchError) => {
+        res.send(dbSearchError);
+      });
+  } else {
+    GAME.find({
+      System: {
+        CPU: { $regex: new RegExp(cpu, "i") },
+        GPU: { $regex: new RegExp(gpu, "i") },
+        MEMORY: memory,
+      },
     })
-    .catch((err) => {
-      res.send(err);
-      console.log(`[-] SOMETHING WENT WRONG IN DATA SEARCH: ${err}`);
-    });
+      .then((searchResult) => {
+        res.send(searchResult);
+      })
+      .catch((dbSearchError) => {
+        res.send(dbSearchError);
+      });
+  }
 });
 
 // SUGESSTION HANDLE
-app.post("/search/:cpu", async (req, res) => {
-  const type = req.params.cpu;
+app.post("/search/:hint", (req, res) => {
+  const type = req.params.hint;
+  const value = req.body.value;
+  console.log(type);
+  console.log(value);
   try {
     if (type === "cpu") {
-      await CPU.find({ MODEL: { $regex: new RegExp(req.body.value, "i") } })
+      CPU.find({ MODEL: { $regex: new RegExp(value, "i") } })
         .limit(5)
         .then((result) => {
           res.send(result);
@@ -62,7 +92,7 @@ app.post("/search/:cpu", async (req, res) => {
           res.send(err);
         });
     } else if (type === "gpu") {
-      await GPU.find({ MODEL: { $regex: new RegExp(req.body.value, "i") } })
+      GPU.find({ MODEL: { $regex: new RegExp(value, "i") } })
         .limit(5)
         .then((result) => {
           res.send(result);
@@ -72,7 +102,9 @@ app.post("/search/:cpu", async (req, res) => {
           res.send(err);
         });
     } else if (type === "name") {
-      await GAME.find({ MODEL: { $regex: new RegExp(req.body.value, "i") } })
+      GAME.find({
+        "DETAILS.NAME": { $regex: value, $options: "i" },
+      })
         .limit(5)
         .then((result) => {
           res.send(result);

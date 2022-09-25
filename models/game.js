@@ -25,15 +25,18 @@ const GameSchema = new Schema(
         require: true,
       },
     },
-    SYSTEM: {
-      CPU: {
-        type: String,
+    SYSTEM_REQUIREMENTS: {
+      PROCESSORS: {
+        type: Array,
       },
-      GPU: {
-        type: String,
+      GRAPHICS: {
+        type: Array,
       },
       MEMORY: {
-        type: String,
+        type: Number,
+      },
+      STORAGE: {
+        type: Number,
       },
     },
   },

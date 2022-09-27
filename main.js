@@ -35,12 +35,12 @@ function getGpu(query, projection) {
   return result;
 }
 
-function getGames(query = {}, projection = {}) {
-  let result = GAME.find(query, projection).exec();
+function getGames(query = {}, projection = {}, sorting = {}) {
+  let result = GAME.find(query, projection).sort(sorting).exec();
   return result;
 }
 
-async function searchWithSystem(cpuId, gpuId, memory) {
+async function searchWithSystem(cpuId, gpuId, memory, sorting = {}) {
   let fullQuery = {
     "SYSTEM_REQUIREMENTS.PROCESSORS": cpuId,
     "SYSTEM_REQUIREMENTS.GRAPHICS": gpuId,
@@ -61,23 +61,59 @@ async function searchWithSystem(cpuId, gpuId, memory) {
 
   try {
     if (cpuId === null) {
-      let games = await getGames(cpuAbsentQuery);
+      let games = await getGames(cpuAbsentQuery, {}, sorting);
       // console.trace(`SS RESULT: ${games}`);
       return games;
     }
 
     if (gpuId === null) {
-      let games = await getGames(cpuId);
+      let games = await getGames(cpuId, {}, sorting);
       // console.trace(`SS RESULT: ${games}`);
       return games;
     }
 
-    let games = await getGames(fullQuery);
+    let games = await getGames(fullQuery, {}, sorting);
     // console.trace(`SS RESULT: ${games}`);
     return games;
   } catch (error) {
     console.log(error.stack);
   }
+}
+
+async function idsToNames(games) {
+  let readableGames = [];
+
+  for (game of games) {
+    let cpuids = game.SYSTEM_REQUIREMENTS.PROCESSORS;
+    let gpuids = game.SYSTEM_REQUIREMENTS.GRAPHICS;
+
+    let cpuNames = [];
+    let gpuNames = [];
+
+    for (let cpuid of cpuids) {
+      let result = await getCpu(
+        { _id: mongoose.Types.ObjectId(cpuid) },
+        { MODEL: 1 }
+      );
+      let name = result[0].MODEL;
+      cpuNames.push(name);
+    }
+    game.SYSTEM_REQUIREMENTS.PROCESSORS = cpuNames;
+
+    for (let gpuid of gpuids) {
+      let result = await getGpu(
+        { _id: mongoose.Types.ObjectId(gpuid) },
+        { NAME: 1 }
+      );
+      let name = result[0].NAME;
+      gpuNames.push(name);
+    }
+    game.SYSTEM_REQUIREMENTS.GRAPHICS = gpuNames;
+
+    readableGames.push(game);
+  }
+
+  return readableGames;
 }
 
 // ROUTING =========================================================
@@ -97,6 +133,20 @@ app.post("/search", async (req, res) => {
     const inputMemory =
       req.body.memory === "" ? 51200 : parseInt(req.body.memory);
     const inputName = req.body.name;
+    const inputSorting = req.body.sorting;
+    let sorting = {};
+
+    if (inputSorting !== "") {
+      if (inputSorting === "NAME") {
+        sorting = { "DETAILS.NAME": 1 };
+      }
+      if (inputSorting === "DEVELOPER") {
+        sorting = { "DETAILS.DEVELOPER": 1 };
+      }
+      if (inputSorting === "YEAR") {
+        sorting = { "DETAILS.RELEASE_YEAR": 1 };
+      }
+    }
 
     if (
       inputCPU === "" &&
@@ -104,8 +154,9 @@ app.post("/search", async (req, res) => {
       inputMemory === 51200 &&
       inputName === ""
     ) {
-      let result = getGames();
-      console.log(result);
+      let result = await getGames({}, {}, sorting);
+      let games = await idsToNames(result);
+      res.send(games);
       return;
     }
 
@@ -113,8 +164,9 @@ app.post("/search", async (req, res) => {
       let query = {
         "DETAILS.NAME": { $regex: new RegExp(inputName), $options: "i" },
       };
-      let result = await getGames(query);
-      console.log(result);
+      let result = await getGames(query, {}, sorting);
+      let games = await idsToNames(result);
+      res.send(games);
       return;
     }
 
@@ -131,41 +183,14 @@ app.post("/search", async (req, res) => {
       inputGPUId = result[0]._id.toString();
     }
 
-    let result = await searchWithSystem(inputCPUId, inputGPUId, inputMemory);
+    let result = await searchWithSystem(
+      inputCPUId,
+      inputGPUId,
+      inputMemory,
+      sorting
+    );
 
-    let games = [];
-
-    for (game of result) {
-      let cpuids = game.SYSTEM_REQUIREMENTS.PROCESSORS;
-      let gpuids = game.SYSTEM_REQUIREMENTS.GRAPHICS;
-
-      let cpuNames = [];
-      let gpuNames = [];
-
-      for (let cpuid of cpuids) {
-        let result = await getCpu(
-          { _id: mongoose.Types.ObjectId(cpuid) },
-          { MODEL: 1 }
-        );
-        let name = result[0].MODEL;
-        cpuNames.push(name);
-      }
-      console.log(cpuNames);
-      game.SYSTEM_REQUIREMENTS.PROCESSORS = cpuNames;
-
-      for (let gpuid of gpuids) {
-        let result = await getGpu(
-          { _id: mongoose.Types.ObjectId(gpuid) },
-          { NAME: 1 }
-        );
-        let name = result[0].NAME;
-        gpuNames.push(name);
-      }
-      console.log(gpuNames);
-      game.SYSTEM_REQUIREMENTS.GRAPHICS = gpuNames;
-
-      games.push(game);
-    }
+    let games = await idsToNames(result);
 
     res.send(games);
   } catch (error) {
